@@ -7,6 +7,7 @@ from math import floor, ceil
 from scipy.optimize import brenth
 from operator import itemgetter
 from scipy.interpolate import InterpolatedUnivariateSpline
+from itertools import chain
 import json
 
 DEBUG = True
@@ -45,8 +46,8 @@ class Common(object):
         spl = InterpolatedUnivariateSpline(xx, yy)
         return spl
 
-    @staticmethod
-    def root(spl, y, start, stop, scan_step=0.025):
+    @classmethod
+    def root(cls, spl, y, start, stop, scan_step=0.025):
         """计算样条曲线在y处于某个值时, 在[start, stop]范围内的交点
             :param spl: 样条函数
             :param y:
@@ -70,7 +71,7 @@ class Common(object):
         if len(out) % 2 != 0 and len(out) > 1:
             tmp = []
             for p1, p2 in zip(out, out[1:]):
-                if Common.distance(p1, p2) > 2.0:
+                if cls.distance(p1, p2) > 2.0:
                     tmp.extend([p1, p2])
             out = tmp[:]
         if len(out) == 1:
@@ -78,112 +79,120 @@ class Common(object):
         return out
 
 
-def generate_xcoord(spl, start, stop, step=1.0):
-    out = []
-    for x in np.arange(start + step, stop, step):
-        y = float(spl(x))
-        pt_pair = [(x, y), (x, -y)]
-        out.append(pt_pair)
-    return out
+class GenerateCoord(object):
+    @classmethod
+    def generate_xcoord(cls, spl, start, stop, step=1.0):
+        out = []
+        for x in np.arange(start + step, stop, step):
+            y = float(spl(x))
+            pt_pair = [(x, y), (x, -y)]
+            out.append(pt_pair)
+        return out
+
+    @classmethod
+    def need_to_skip(cls, x1, x2):
+        """本函数服务于generate_ycoord，用于改善求交中畸变的情况。
+        :param x1:
+        :param x2:
+        :return:
+        """
+        assert x1 < x2
+        # 调整点以避免8.99999和10.0000000003的情况
+        t_x1 = x1 + 0.0001
+        t_x2 = x2 - 0.0001
+        if t_x1 > t_x2:
+            return True
+        elif ceil(t_x1) == floor(t_x2):
+            return True
+        else:
+            return False
+
+    @classmethod
+    def generate_ycoord(cls, spl, start, stop, step=1.0, *custom):
+        """
+        在[start, stop]范围内求交生成ycoord杆件布置。
+        :param spl:
+        :param start:
+        :param stop:
+        :param step:
+        :param custom:
+        :return:一个坐标对的列表。[[point1, point2], [point3, point4], ...]
+        """
+        assert len(custom) == 2 or len(custom) == 0
+        if len(custom) == 2:
+            x_c, y_c = custom
+            out = [[(x_c, 0.0), (y_c, 0.0)], ]
+        else:
+            out = [[(start, 0.0), (stop, 0.0)], ]
+            x_c, y_c = start, stop
+        for y in np.arange(start + step, stop, step):
+            root_result = Common.root(spl, y, x_c, y_c, scan_step=0.005)
+            if len(root_result) % 2 != 0:
+                raise Exception("Wrong Root List %r" % root_result)
+            if len(root_result) == 0:
+                break
+            for i in range(0, len(root_result), 2):
+                # temp1 = root_result[i:i + 2]
+                pt1, pt2 = root_result[i: i + 2]
+                x1, y1 = pt1
+                x2, y2 = pt2
+                pt_pair1 = [(x1, y1), (x2, y2)]
+                pt_pair2 = [(x1, -y1), (x2, -y2)]
+                if cls.need_to_skip(x1, x2):  # skip the points which has only one cross node.
+                    continue
+                out.extend([pt_pair1, pt_pair2])
+        return out
+
+    @classmethod
+    def get_cross_point(cls, x_pair, y_pair):
+        x_pair.sort(key=itemgetter(1))
+        y_pair.sort(key=itemgetter(0))
+        x = x_pair[0][0]
+        y = y_pair[0][1]
+        if x_pair[0][1] < y < x_pair[1][1] and y_pair[0][0] < x < y_pair[1][0]:
+            pt = (x, y)
+            return pt
+        else:
+            return None
+
+    @classmethod
+    def generate_incoord(cls, xcoord, ycoord):
+        incoord_set = set()
+        for x_pair in xcoord:
+            for y_pair in ycoord:
+                pt = cls.get_cross_point(x_pair, y_pair)
+                incoord_set.add(pt)
+        incoord_set.remove(None)
+        out = list(incoord_set)
+        return out
 
 
-def need_to_skip(x1, x2):
-    """本函数服务于generate_ycoord，用于改善求交中畸变的情况。
-    :param x1:
-    :param x2:
-    :return:
-    """
-    assert x1 < x2
-    # 调整点以避免8.99999和10.0000000003的情况
-    t_x1 = x1 + 0.0001
-    t_x2 = x2 - 0.0001
-    if t_x1 > t_x2:
-        return True
-    elif ceil(t_x1) == floor(t_x2):
-        return True
-    else:
-        return False
+class GenerateAbaqusData(object):
+    @classmethod
+    def to_3d(cls, pt_list):
+        """输入点的列表(x_coord或者in_coord之类), 增加z坐标=0.0的对应的三维点列表。
+        :param pt_list:
+        :rtype: list
+        """
+        data = list(chain(*pt_list))
+        # 对于x_coord和y_coord生成的点对，需要再flatten一次
+        if isinstance(data[0], list):
+            data = list(chain(*data))
+        out = []
+        for x, y in zip(data[0::2], data[1::2]):
+            pt = (x, y, 0.0)
+            out.append(pt)
+        return out
 
+    @classmethod
+    def to_json(cls, abaqus_dir, cae_name, odb_name, iter_time, input_dict):
+        xcoord = input_dict['xcoord']
+        ycoord = input_dict['ycoord']
+        incoord = input_dict['incoord']
 
-def generate_ycoord(spl, start, stop, step=1.0, *custom):
-    """
-    在[start, stop]范围内求交生成ycoord杆件布置。
-    :param spl:
-    :param start:
-    :param stop:
-    :param step:
-    :param custom:
-    :return:一个坐标对的列表。[[point1, point2], [point3, point4], ...]
-    """
-    assert len(custom) == 2 or len(custom) == 0
-    if len(custom) == 2:
-        x_c, y_c = custom
-        out = [[(x_c, 0.0), (y_c, 0.0)], ]
-    else:
-        out = [[(start, 0.0), (stop, 0.0)], ]
-        x_c, y_c = start, stop
-    for y in np.arange(start + step, stop, step):
-        root_result = Common.root(spl, y, x_c, y_c, scan_step=0.005)
-        if len(root_result) % 2 != 0:
-            raise Exception("Wrong Root List %r" % root_result)
-        if len(root_result) == 0:
-            break
-        for i in range(0, len(root_result), 2):
-            # temp1 = root_result[i:i + 2]
-            pt1, pt2 = root_result[i: i + 2]
-            x1, y1 = pt1
-            x2, y2 = pt2
-            pt_pair1 = [(x1, y1), (x2, y2)]
-            pt_pair2 = [(x1, -y1), (x2, -y2)]
-            if need_to_skip(x1, x2):  # skip the points which has only one cross node.
-                continue
-            out.extend([pt_pair1, pt_pair2])
-    return out
-
-
-def get_cross_point(x_pair, y_pair):
-    x_pair.sort(key=itemgetter(1))
-    y_pair.sort(key=itemgetter(0))
-    x = x_pair[0][0]
-    y = y_pair[0][1]
-    if x_pair[0][1] < y < x_pair[1][1] and y_pair[0][0] < x < y_pair[1][0]:
-        pt = (x, y)
-        return pt
-    else:
-        return None
-
-
-def generate_incoord(xcoord, ycoord):
-    incoord_set = set()
-    for x_pair in xcoord:
-        for y_pair in ycoord:
-            pt = get_cross_point(x_pair, y_pair)
-            incoord_set.add(pt)
-    incoord_set.remove(None)
-    out = list(incoord_set)
-    return out
-
-
-def to_3d_xy(pointlst):
-    # Input format:[ [(a1, b1), (a2, b2)],
-    #                [(a3, b3), (a4, b4)],
-    #                ......
-    #                [......,   (an, bn)] ]
-    # Output format:[(a1, b1, 0.0), (a2, b2, 0.0), ..., (an, bn, 0.0)]
-    out = []
-    for lst in pointlst:
-        for x, y in lst:
-            out.append((x, y, 0.0), )
-    return out
-
-
-def to_3d_in(pointlst):
-    # Input format:[ (a1, b1), (a2, b2), ..., (an, bn)]
-    # Output format:[ (a1, b1, 0.0), (a2, b2, 0.0), ..., (an, bn, 0.0)]
-    out = []
-    for x, y in pointlst:
-        out.append((x, y, 0.0))
-    return out
+        xcoord_3d = cls.to_3d(xcoord)
+        ycoord_3d = cls.to_3d(ycoord)
+        incoord_3d = cls.to_3d(incoord)
 
 
 class InitPlain(object):
@@ -198,9 +207,9 @@ class InitPlain(object):
         self.rb = self.pt_list[-1][0]  # right_bound
         self.spl = Common.get_spl(self.pt_list)
 
-        self.xcoord = generate_xcoord(self.spl, self.lb, self.rb, 1.0)
-        self.ycoord = generate_ycoord(self.spl, self.lb, self.rb, 1.0)
-        self.incoord = generate_incoord(self.xcoord, self.ycoord)
+        self.xcoord = GenerateCoord.generate_xcoord(self.spl, self.lb, self.rb, 1.0)
+        self.ycoord = GenerateCoord.generate_ycoord(self.spl, self.lb, self.rb, 1.0)
+        self.incoord = GenerateCoord.generate_incoord(self.xcoord, self.ycoord)
 
     def to_json(self, file_name, save_path=os.getcwd()):
         d = {}
