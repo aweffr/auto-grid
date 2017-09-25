@@ -185,14 +185,38 @@ class GenerateAbaqusData(object):
         return out
 
     @classmethod
-    def to_json(cls, abaqus_dir, cae_name, odb_name, iter_time, input_dict):
-        xcoord = input_dict['xcoord']
-        ycoord = input_dict['ycoord']
-        incoord = input_dict['incoord']
+    def to_json(cls, d_in, save_dir, file_name,
+                abaqus_dir, cae_name, odb_name,
+                iter_time, left_hang, left_hang_height,
+                right_hang, right_hang_height, vector=(0, 0, 0)):
+        xcoord = d_in['xcoord']
+        ycoord = d_in['ycoord']
+        incoord = d_in['incoord']
 
         xcoord_3d = cls.to_3d(xcoord)
         ycoord_3d = cls.to_3d(ycoord)
         incoord_3d = cls.to_3d(incoord)
+
+        d_out = dict()
+        d_out['iter_time'] = iter_time
+        d_out['abaqus_dir'] = abaqus_dir
+        d_out['cae_name'] = cae_name
+        d_out['odb_name'] = odb_name
+        d_out['left_hang'] = left_hang
+        d_out['left_hang_height'] = left_hang_height
+        d_out['right_hang'] = right_hang
+        d_out['right_hang_height'] = right_hang_height
+        d_out['vector'] = vector
+        d_out['xcoord'] = xcoord
+        d_out['ycoord'] = ycoord
+        d_out['incoord'] = incoord
+        d_out['xcoord_3d'] = xcoord_3d
+        d_out['ycoord_3d'] = ycoord_3d
+        d_out['incoord_3d'] = incoord_3d
+
+        with open(save_dir + "/" + file_name, "w") as f:
+            f.writelines(json.dumps(d_out, indent=4))
+        return d_out
 
 
 class InitPlain(object):
@@ -223,19 +247,34 @@ class InitPlain(object):
         return d
 
     def plot_xy(self, file_name=None, save_path=os.getcwd()):
+        """绘示意图。当file_name和save_path给了额外保存图像。
+        :param file_name:
+        :param save_path:
+        :return:
+        """
         fig = plt.figure(figsize=(15, 8))
+
+        # 绘制控制点
         xx = Common.xlist(self.pt_list)
         yy = Common.ylist(self.pt_list)
         plt.plot(xx, yy, 'r^', markersize=16)
+
+        # 绘制拟合的样条线
         xx = np.linspace(self.lb, self.rb, 300)
         yy = self.spl(xx)
         plt.plot(xx, yy, 'r--', linewidth=6)
+
+        # 绘制边界点
         for pt_pair in self.xcoord + self.ycoord:
             xx = Common.xlist(pt_pair)
             yy = Common.ylist(pt_pair)
             plt.plot(xx, yy, linewidth=1.2)
+
+        # 绘制内部点
         for x, y in self.incoord:
             plt.plot(x, y, 'ro', markersize=3.5)
+
+        # 调整图像显示
         plt.xlim((self.lb, self.rb), )
         if file_name is not None:
             fig.savefig(save_path + "/" + file_name)
