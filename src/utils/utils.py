@@ -185,10 +185,29 @@ class GenerateAbaqusData(object):
         return out
 
     @classmethod
-    def to_json(cls, d_in, save_dir, file_name,
-                abaqus_dir, cae_name, odb_name,
+    def to_json(cls, d_in, json_file_name,
+                abaqus_dir, mdb_name, odb_name,
                 iter_time, left_hang, left_hang_height,
-                right_hang, right_hang_height, vector=(0, 0, 0)):
+                right_hang, right_hang_height,
+                radius, thickness, elastic_modular, density,
+                vector=(0, 0, 0),
+                json_save_dir=os.getcwd()):
+        """
+        把平面布置的结果转换成abaqus前处理的文件。
+        :param d_in: 平面布置的数据, 字典格式
+        :param json_save_dir: 输出的json的保存路径
+        :param json_file_name: json文件名
+        :param abaqus_dir: abaqus工作目录
+        :param mdb_name:
+        :param odb_name:
+        :param iter_time:
+        :param left_hang:
+        :param left_hang_height:
+        :param right_hang:
+        :param right_hang_height:
+        :param vector:
+        :return:
+        """
         xcoord = d_in['xcoord']
         ycoord = d_in['ycoord']
         incoord = d_in['incoord']
@@ -200,7 +219,7 @@ class GenerateAbaqusData(object):
         d_out = dict()
         d_out['iter_time'] = iter_time
         d_out['abaqus_dir'] = abaqus_dir
-        d_out['cae_name'] = cae_name
+        d_out['mdb_name'] = mdb_name
         d_out['odb_name'] = odb_name
         d_out['left_hang'] = left_hang
         d_out['left_hang_height'] = left_hang_height
@@ -214,8 +233,13 @@ class GenerateAbaqusData(object):
         d_out['ycoord_3d'] = ycoord_3d
         d_out['incoord_3d'] = incoord_3d
 
-        with open(save_dir + "/" + file_name, "w") as f:
-            f.writelines(json.dumps(d_out, indent=4))
+        d_out['radius'] = radius
+        d_out['thickness'] = thickness
+        d_out['elastic_modular'] = elastic_modular
+        d_out['density'] = density
+
+        with open(json_save_dir + "/" + json_file_name, "w") as f:
+            f.writelines(json.dumps(d_out, indent=4, encoding='UTF-8'), )
         return d_out
 
 

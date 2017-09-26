@@ -1,6 +1,7 @@
 from __future__ import print_function
 import unittest
 from src.utils.utils import *
+from src.utils.run_abaqus import *
 
 
 class UtilsTest(unittest.TestCase):
@@ -12,7 +13,7 @@ class UtilsTest(unittest.TestCase):
         test = [(0, 0), (2, 6.2), (10, 13), (20, 11.5), (30, 13), (38, 6.2), (40, 0)]
         tc = InitPlain(test)
         tc.to_json(file_name="test_output.json")
-        tc.plot_xy()
+        # tc.plot_xy()
 
     def test_b_Generate3DPoint(self):
         with open("test_output.json", "r") as f:
@@ -21,6 +22,40 @@ class UtilsTest(unittest.TestCase):
         incoord = d['incoord']
         print(GenerateAbaqusData.to_3d(xcoord))
         print(GenerateAbaqusData.to_3d(incoord))
+
+    def test_c_GenerateOutput(self):
+        with open("test_output.json", "r") as f:
+            d = json.load(f)
+        GenerateAbaqusData.to_json(
+            d_in=d,
+            json_file_name="test_init.json",
+            abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files",
+            mdb_name="test_init",
+            odb_name="test_init",
+            iter_time=0,
+            left_hang=10,
+            left_hang_height=5,
+            right_hang=30,
+            right_hang_height=5,
+            radius=0.02,
+            thickness=0.003,
+            elastic_modular=26E+09,
+            density=1850
+        )
+
+    def test_d_RunAbaqus(self):
+        abaqus_dir = "E:/AbaqusDir/sym-40/abaqus-files"
+
+        script_path = "E:/AbaqusDir/auto/output"
+        script_name = "new_pre.py"
+
+        json_path = "E:/AbaqusDir/auto/test"
+        json_file_name = "test_init.json"
+
+        abaqus_env = RunAbaqus(abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files")
+        abaqus_env.pre_pocess(
+            script_path=script_path, script_name=script_name,
+            json_path=json_path, json_file_name=json_file_name)
 
     def tearDown(self):
         super(UtilsTest, self).tearDown()
