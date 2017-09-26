@@ -10,7 +10,7 @@ class UtilsTest(unittest.TestCase):
         abaqus_dir = "E:/AbaqusDir/sym-40/abaqus-files"
         abaqus_exe_path = "C:/SIMULIA/Abaqus/6.14-2/code/bin/abq6142.exe"
 
-        script_path = "E:/AbaqusDir/auto/output"
+        script_path = "E:/AbaqusDir/auto/abaqus_api"
         pre_script_name = "pre.py"
         post_script_name = "post.py"
 
@@ -42,7 +42,8 @@ class UtilsTest(unittest.TestCase):
             d = json.load(f)
         GenerateAbaqusData.to_json(
             d_in=d,
-            json_file_name="test_init.json",
+            json_file_name="pre_post_finish.json",
+            json_save_dir="E:/AbaqusDir/auto/output",
             abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files",
             mdb_name="pm1508",
             odb_name="pm1508",
@@ -59,13 +60,13 @@ class UtilsTest(unittest.TestCase):
         )
 
     def test_d_RunAbaqusPre(self):
-        json_path = "E:/AbaqusDir/auto/test"
-        json_file_name = "test_init.json"
+        json_path = "E:/AbaqusDir/auto/output"
+        json_file_name = "pre_post_finish.json"
         self.abaqus_env.pre_process(json_path, json_file_name)
 
     def test_e_RunAbaqusPost(self):
-        json_path = "E:/AbaqusDir/auto/test"
-        json_file_name = "test_init.json"
+        json_path = "E:/AbaqusDir/auto/output"
+        json_file_name = "pre_post_finish.json"
         self.abaqus_env.post_process(json_path, json_file_name)
 
     def tearDown(self):
