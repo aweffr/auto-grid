@@ -23,17 +23,17 @@ class Common(object):
     def xlist(inlst):
         # inlst format:[(a1,b1), (a2,b2),....(an,bn)]
         # out format: [a1, a2, a3, ..., an]
-        return map(lambda x: x[0], inlst)
+        return [x[0] for x in inlst]
 
     @staticmethod
     def ylist(inlst):
         # inlst format same as xlist
         # out format: [b1, b2, b3, ..., bn]
-        return map(lambda x: x[1], inlst)
+        return [x[1] for x in inlst]
 
     @staticmethod
     def zlist(inlst):
-        return map(lambda x: x[2], inlst)
+        return [x[2] for x in inlst]
 
     @staticmethod
     def get_spl(pt_list):
@@ -190,6 +190,7 @@ class GenerateAbaqusData(object):
                 iter_time, left_hang, left_hang_height,
                 right_hang, right_hang_height,
                 radius, thickness, elastic_modular, density,
+                deformation_step_name,
                 vector=(0, 0, 0),
                 json_save_dir=os.getcwd()):
         """
@@ -233,13 +234,15 @@ class GenerateAbaqusData(object):
         d_out['ycoord_3d'] = ycoord_3d
         d_out['incoord_3d'] = incoord_3d
 
+        d_out['deformation_step_name'] = deformation_step_name
+
         d_out['radius'] = radius
         d_out['thickness'] = thickness
         d_out['elastic_modular'] = elastic_modular
         d_out['density'] = density
 
         with open(json_save_dir + "/" + json_file_name, "w") as f:
-            f.writelines(json.dumps(d_out, indent=4, encoding='UTF-8'), )
+            f.writelines(json.dumps(d_out, indent=4), )
         return d_out
 
 

@@ -7,6 +7,20 @@ from src.utils.run_abaqus import *
 class UtilsTest(unittest.TestCase):
     def setUp(self):
         super(UtilsTest, self).setUp()
+        abaqus_dir = "E:/AbaqusDir/sym-40/abaqus-files"
+        abaqus_exe_path = "C:/SIMULIA/Abaqus/6.14-2/code/bin/abq6142.exe"
+
+        script_path = "E:/AbaqusDir/auto/output"
+        pre_script_name = "pre.py"
+        post_script_name = "post.py"
+
+        self.abaqus_env = RunAbaqus(
+            abaqus_exe_path=abaqus_exe_path,
+            abaqus_dir=abaqus_dir,
+            script_path=script_path,
+            pre_script=pre_script_name,
+            post_script=post_script_name
+        )
 
     def test_a_GenerateCurve(self):
         # test unit
@@ -30,8 +44,8 @@ class UtilsTest(unittest.TestCase):
             d_in=d,
             json_file_name="test_init.json",
             abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files",
-            mdb_name="test_init",
-            odb_name="test_init",
+            mdb_name="pm1508",
+            odb_name="pm1508",
             iter_time=0,
             left_hang=10,
             left_hang_height=5,
@@ -40,22 +54,19 @@ class UtilsTest(unittest.TestCase):
             radius=0.02,
             thickness=0.003,
             elastic_modular=26E+09,
-            density=1850
+            density=1850,
+            deformation_step_name="Step-1"
         )
 
-    def test_d_RunAbaqus(self):
-        abaqus_dir = "E:/AbaqusDir/sym-40/abaqus-files"
-
-        script_path = "E:/AbaqusDir/auto/output"
-        script_name = "new_pre.py"
-
+    def test_d_RunAbaqusPre(self):
         json_path = "E:/AbaqusDir/auto/test"
         json_file_name = "test_init.json"
+        self.abaqus_env.pre_process(json_path, json_file_name)
 
-        abaqus_env = RunAbaqus(abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files")
-        abaqus_env.pre_pocess(
-            script_path=script_path, script_name=script_name,
-            json_path=json_path, json_file_name=json_file_name)
+    def test_e_RunAbaqusPost(self):
+        json_path = "E:/AbaqusDir/auto/test"
+        json_file_name = "test_init.json"
+        self.abaqus_env.post_process(json_path, json_file_name)
 
     def tearDown(self):
         super(UtilsTest, self).tearDown()
