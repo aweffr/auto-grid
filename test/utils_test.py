@@ -1,7 +1,9 @@
 from __future__ import print_function
+
 import unittest
-from src.utils.utils import *
+
 from src.utils.run_abaqus import *
+from src.utils.utils import *
 
 
 class UtilsTest(unittest.TestCase):
@@ -22,6 +24,10 @@ class UtilsTest(unittest.TestCase):
             post_script=post_script_name
         )
 
+        self.json_path = "E:/AbaqusDir/auto/output"
+        self.json_1st_name = "iter6.json"
+        self.json_2nd_name = "iter6-abaqus-pre.json"
+
     def test_a_GenerateCurve(self):
         # test unit
         test = [(0, 0), (2, 6.2), (10, 13), (20, 11.5), (30, 13), (38, 6.2), (40, 0)]
@@ -30,23 +36,28 @@ class UtilsTest(unittest.TestCase):
         # tc.plot_xy()
 
     def test_b_Generate3DPoint(self):
-        with open("test_output.json", "r") as f:
+        json_path = "E:/AbaqusDir/auto/output"
+        json_name = "iter2.json"
+        with open(self.json_path + "/" + self.json_1st_name, "r") as f:
             d = json.load(f)
         xcoord = d['xcoord']
         incoord = d['incoord']
         print(GenerateAbaqusData.to_3d(xcoord))
         print(GenerateAbaqusData.to_3d(incoord))
+        print("pass test b")
 
     def test_c_GenerateOutput(self):
-        with open("test_output.json", "r") as f:
+        # json_path = "E:/AbaqusDir/auto/output"
+        # json_name = "iter2.json"
+        with open(self.json_path + "/" + self.json_1st_name, "r") as f:
             d = json.load(f)
         GenerateAbaqusData.to_json(
             d_in=d,
-            json_file_name="pre_post_finish.json",
-            json_save_dir="E:/AbaqusDir/auto/output",
+            json_file_name=self.json_2nd_name,
+            json_save_dir=self.json_path,
             abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files",
-            mdb_name="pm1508",
-            odb_name="pm1508",
+            mdb_name="iter6",
+            odb_name="iter6",
             iter_time=0,
             left_hang=10,
             left_hang_height=5,
@@ -60,13 +71,13 @@ class UtilsTest(unittest.TestCase):
         )
 
     def test_d_RunAbaqusPre(self):
-        json_path = "E:/AbaqusDir/auto/output"
-        json_file_name = "pre_post_finish.json"
+        json_path = self.json_path
+        json_file_name = self.json_2nd_name
         self.abaqus_env.pre_process(json_path, json_file_name)
 
     def test_e_RunAbaqusPost(self):
-        json_path = "E:/AbaqusDir/auto/output"
-        json_file_name = "pre_post_finish.json"
+        json_path = self.json_path
+        json_file_name = self.json_2nd_name
         self.abaqus_env.post_process(json_path, json_file_name)
 
     def tearDown(self):
