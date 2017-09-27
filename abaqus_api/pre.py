@@ -355,8 +355,8 @@ submitJob = mdb.Job(atTime=None,
                     type=ANALYSIS,
                     userSubroutine='',
                     waitHours=0, waitMinutes=0)
-
+mdb.saveAs(pathName=mdb_name)
 print "Now Job created!"
 submitJob.submit(consistencyChecking=OFF)
 print "Now Job submitted!"
-mdb.saveAs(pathName=mdb_name)
+
