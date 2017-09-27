@@ -1,14 +1,17 @@
 # -*- coding:utf-8 -*-
 
+import json
 import os
+from itertools import chain
+from math import floor, ceil
+from operator import itemgetter
+
 import matplotlib.pyplot as plt
 import numpy as np
-from math import floor, ceil
-from scipy.optimize import brenth
-from operator import itemgetter
 from scipy.interpolate import InterpolatedUnivariateSpline
-from itertools import chain
-import json
+from scipy.optimize import brenth
+
+from .my_types import Point2
 
 DEBUG = True
 
@@ -78,13 +81,33 @@ class Common(object):
             out = []
         return out
 
+    @classmethod
+    def second_diff(cls, p1: Point2, p2: Point2, p3: Point2) -> float:
+        """给定p1, p2, p3, x值依次增大, 求其二阶差商。
+        :param p1:
+        :param p2:
+        :param p3:
+        :return:
+        """
+        assert p1[0] < p2[0] < p3[0]
+        alpha1 = (p2[1] - p1[1]) / (p2[0] - p1[0])
+        alpha2 = (p3[1] - p1[1]) / (p3[0] - p1[0])
+        _2d_alpha = (alpha2 - alpha1) / (p3[0] - p2[0])
+        return _2d_alpha
+
 
 class GenerateCoord(object):
     @classmethod
     def generate_xcoord(cls, spl, start, stop, step=1.0):
         out = []
-        for x in np.arange(start + step, stop, step):
+        if start != ceil(start):
+            start = ceil(start)
+        else:
+            start = start + step
+        for x in np.arange(start, stop, step):
             y = float(spl(x))
+            if y < 1.0:  # 过滤掉'孤儿点'
+                continue
             pt_pair = [(x, y), (x, -y)]
             out.append(pt_pair)
         return out
@@ -102,7 +125,7 @@ class GenerateCoord(object):
         t_x2 = x2 - 0.0001
         if t_x1 > t_x2:
             return True
-        elif ceil(t_x1) == floor(t_x2):
+        elif ceil(t_x1) == floor(t_x2) or ceil(t_x1) > floor(t_x2):
             return True
         else:
             return False
@@ -125,7 +148,7 @@ class GenerateCoord(object):
         else:
             out = [[(start, 0.0), (stop, 0.0)], ]
             x_c, y_c = start, stop
-        for y in np.arange(start + step, stop, step):
+        for y in np.arange(0.0 + step, stop, step):
             root_result = Common.root(spl, y, x_c, y_c, scan_step=0.005)
             if len(root_result) % 2 != 0:
                 raise Exception("Wrong Root List %r" % root_result)
@@ -162,7 +185,8 @@ class GenerateCoord(object):
             for y_pair in ycoord:
                 pt = cls.get_cross_point(x_pair, y_pair)
                 incoord_set.add(pt)
-        incoord_set.remove(None)
+        if None in incoord_set:
+            incoord_set.remove(None)
         out = list(incoord_set)
         return out
 
