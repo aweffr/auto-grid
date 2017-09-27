@@ -2,16 +2,13 @@
 import json
 from math import sqrt
 from operator import itemgetter
-from typing import List, Tuple, Union
 
 import matplotlib.pyplot as plt
 from numpy import std
+from scipy.interpolate import UnivariateSpline
 
-Point2 = Tuple[float, float]
-Point3 = Tuple[float, float, float]
-ResArr = Tuple[float, float, float, float, float, float]
-
-Point = Union[Tuple, List]
+from src.utils.my_types import Point, Point2, OdbArr, IterResult
+from src.utils.utils import InitPlain
 
 
 def avg_err(points: list) -> (float, float):
@@ -60,13 +57,13 @@ class Distance(object):
         :return:
         """
         if cls.__2or3(p1, p2) == 2:
-            x_2 = p1[0] ** 2 + p2[0] ** 2
-            y_2 = p1[1] ** 2 + p2[1] ** 2
+            x_2 = (p1[0] - p2[0]) ** 2
+            y_2 = (p1[1] - p2[1]) ** 2
             return sqrt(x_2 + y_2)
         else:
-            x_2 = p1[0] ** 2 + p2[0] ** 2
-            y_2 = p1[1] ** 2 + p2[1] ** 2
-            z_2 = p1[2] ** 2 + p2[2] ** 2
+            x_2 = (p1[0] - p2[0]) ** 2
+            y_2 = (p1[1] - p2[1]) ** 2
+            z_2 = (p1[2] - p2[2]) ** 2
             return sqrt(x_2 + y_2 + z_2)
 
 
@@ -110,7 +107,7 @@ class Iteration(object):
 
     # TODO: 构造avg_space_point单独的单元测试，覆盖四个象限的情况
     @classmethod
-    def avg_space_point(cls, p_b: ResArr, p_in: ResArr, avg_z: float):
+    def avg_space_point(cls, p_b: OdbArr, p_in: OdbArr, avg_z: float):
         """由边界点和其相邻内部点的空间位置得到的直线，计算当位移等于avg的时候的空间点。
         :param p_b:
         :param p_in:
@@ -132,54 +129,131 @@ class Iteration(object):
         return avg_space_pt
 
     @classmethod
-    def adjust(cls, p_b: ResArr, p_in: ResArr, avg_z: float) -> Point2:
+    def adjust_by_k(cls, p_b: OdbArr, p_in: OdbArr, avg_z: float, factor: float = 1.0) -> Point2:
         """计算avg所在空间点和目前边界点的距离, 根据当前p_b和临近p_in计算新的p_b所在位置.
         :param p_b:
         :param p_in:
         :param avg_z:
+        :param factor: 步进速率
         :return:
         """
+        assert factor > 0, "步进速率必须>0"
         relation = cls.relation(p_b, p_in)
         avg_point = cls.avg_space_point(p_b, p_in, avg_z)
+        # print("Now adjust p_b=%s, p_in=%s, avg_point=%s" % (p_b, p_in, avg_point))
         dis = Distance.euclidean(p_b[3:], avg_point)
+        if p_b[-1] > avg_z:
+            adj_val = dis * factor
+        else:
+            adj_val = -dis * factor
         if relation == 'x':
             if p_b[0] < p_in[0]:
-                new_x = p_b[0] - dis
+                new_x = p_b[0] - adj_val
             else:
-                new_x = p_b[0] + dis
+                new_x = p_b[0] + adj_val
             out = (new_x, p_b[1])
         else:
             if p_b[1] < p_in[1]:
-                new_y = p_b[1] - dis
+                new_y = p_b[1] - adj_val
             else:
-                new_y = p_b[1] + dis
+                new_y = p_b[1] + adj_val
             out = (p_b[0], new_y)
         return out
 
-    def __solve(self):
+    @classmethod
+    def adjust_by_z(cls, p_b: OdbArr, p_in: OdbArr, avg_z: float, factor: float = 1.0) -> Point2:
+        """计算avg和当前点z坐标的高差，然后以此高差结合p_b和p_in的关系计算新的p_b所在位置。
+        :param p_b:
+        :param p_in:
+        :param avg_z:
+        :param factor:
+        :return:
+        """
+        assert factor > 0, "步进速率必须>0"
+        relation = cls.relation(p_b, p_in)
+        diff_h = p_b[-1] - avg_z
+        adj_val = diff_h * factor
+        if relation == 'x':
+            if p_b[0] < p_in[0]:
+                new_x = p_b[0] - adj_val
+            else:
+                new_x = p_b[0] + adj_val
+            out = (new_x, p_b[1])
+        else:
+            if p_b[1] < p_in[1]:
+                new_y = p_b[1] - adj_val
+            else:
+                new_y = p_b[1] + adj_val
+            out = (p_b[0], new_y)
+        return out
+
+    @classmethod
+    def smooth(cls, iter_result: IterResult):
+        """
+        先用smooth过的样条线拟合这些点，对于离散度大的进行删除。
+        :param iter_result:
+        :return:
+        """
+        raw_pts = iter_result.values()
+        new_pts = []
+        # 只取大于等于零的点
+        raw_pts = [p for p in raw_pts if p[1] >= 0]
+        raw_pts.sort(key=itemgetter(0))
+        w = [1 for p in raw_pts]
+        w[0], w[-1] = 100, 100
+        spl = UnivariateSpline([p[0] for p in raw_pts], [p[1] for p in raw_pts], w=w, s=3)
+        excluded_pts = set()
+        for p in raw_pts:
+            if abs(p[1] - spl(p[0])) > 0.3:
+                excluded_pts.add(p)
+        for p in raw_pts:
+            if p not in excluded_pts:
+                new_pts.append(p)
+        return new_pts
+
+    def __solve(self) -> IterResult:
         pairs = self.get_b_in_pairs(self.bound_pts, self.inner_pts)
         new_points = dict()
         for p_b, p_in in pairs:
-            p_new = self.adjust(p_b, p_in, self.avg_z)
+            p_new = self.adjust_by_z(p_b, p_in, self.avg_z, factor=self.factor)
             new_points[tuple(p_b)] = p_new
         return new_points
 
-    def plot(self):
+    def plot_raw_result(self):
         """
         :return:
         """
         fig = plt.figure(figsize=(15, 8))
-        for pt_old, pt_new in self.new_points.items():
-            xx = [pt_old[0], pt_new[0]]
-            yy = [pt_old[1], pt_new[1]]
-            plt.plot(xx, yy)
+        for pt_old, pt_new in self.raw_points.items():
+            # xx = [pt_old[0], pt_new[0]]
+            # yy = [pt_old[1], pt_new[1]]
+            # plt.plot(xx, yy)
+            plt.plot(pt_old[0], pt_old[1], "bo")
+            plt.plot(pt_new[0], pt_new[1], "ro")
+        # plt.show()
+        for p in self.new_points:
+            plt.plot(p[0], p[1], 'g^')
         plt.show()
 
-    def __init__(self, d_in):
+    def plot_new_result(self):
+        """
+        :return:
+        """
+        for p in self.new_points:
+            plt.plot(p[0], p[1], 'ro')
+        plt.show()
+
+    def generate_new_plain(self):
+        new_plain = InitPlain(self.new_points)
+        return new_plain
+
+    def __init__(self, d_in, factor):
+        self.factor = factor
         self.bound_pts = sorted(d_in['bound_pts'], key=itemgetter(0))
         self.inner_pts = sorted(d_in['inner_pts'], key=itemgetter(0))
         self.avg_z, self.stderr = avg_err(self.bound_pts)
-        self.new_points = self.__solve()
+        self.raw_points = self.__solve()
+        self.new_points = self.smooth(self.raw_points)
 
 
 if __name__ == '__main__':
@@ -189,4 +263,5 @@ if __name__ == '__main__':
         d = json.load(f)
 
     iter = Iteration(d)
-    iter.plot()
+    iter.plot_raw_result()
+    iter.plot_new_result()
