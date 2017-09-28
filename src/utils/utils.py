@@ -2,7 +2,6 @@
 
 import json
 import os
-from itertools import chain
 from math import floor, ceil
 from operator import itemgetter
 
@@ -193,23 +192,25 @@ class GenerateCoord(object):
 
 class GenerateAbaqusData(object):
     @classmethod
-    def to_3d(cls, pt_list):
-        """输入点的列表(x_coord或者in_coord之类), 增加z坐标=0.0的对应的三维点列表。
+    def to_3d_inner(cls, pt_list):
+        """输入点的列表, 增加z坐标=0.0的对应的三维点列表。
         :param pt_list:
         :rtype: list
         """
-        data = list(chain(*pt_list))
-        # 对于x_coord和y_coord生成的点对，需要再flatten一次
-        if isinstance(data[0], list):
-            data = list(chain(*data))
-        out = []
-        for x, y in zip(data[0::2], data[1::2]):
-            pt = (x, y, 0.0)
-            out.append(pt)
+        out = [(x, y, 0.0) for x, y in pt_list]
         return out
 
     @classmethod
-    def to_json(cls, d_in, json_file_name,
+    def to_3d_xy(cls, pt_list):
+        out = []
+        for p1, p2 in pt_list:
+            x1, y1 = p1
+            x2, y2 = p2
+            out.extend([(x1, y1, 0.0), (x2, y2, 0.0)])
+        return out
+
+    @classmethod
+    def to_json(cls, d_in, json_file_name, res_file_prefix,
                 abaqus_dir, mdb_name, odb_name,
                 iter_time, left_hang, left_hang_height,
                 right_hang, right_hang_height,
@@ -231,15 +232,20 @@ class GenerateAbaqusData(object):
         :param right_hang:
         :param right_hang_height:
         :param vector:
+        :param deformation_step_name: 起吊位移的abaqus分析步的名称
+        :param elastic_modular: 材料属性`弹性模量`
+        :param thickness: 厚度
+        :param radius: 半径
+        :param res_file_prefix:
         :return:
         """
         xcoord = d_in['xcoord']
         ycoord = d_in['ycoord']
         incoord = d_in['incoord']
 
-        xcoord_3d = cls.to_3d(xcoord)
-        ycoord_3d = cls.to_3d(ycoord)
-        incoord_3d = cls.to_3d(incoord)
+        xcoord_3d = cls.to_3d_xy(xcoord)
+        ycoord_3d = cls.to_3d_xy(ycoord)
+        incoord_3d = cls.to_3d_inner(incoord)
 
         d_out = dict()
         d_out['iter_time'] = iter_time
@@ -265,7 +271,11 @@ class GenerateAbaqusData(object):
         d_out['elastic_modular'] = elastic_modular
         d_out['density'] = density
 
+        d_out['res_file_prefix'] = res_file_prefix
         d_out['json_save_dir'] = json_save_dir
+
+        if not json_file_name.endswith(".json"):
+            json_file_name = json_file_name + ".json"
 
         with open(json_save_dir + "/" + json_file_name, "w") as f:
             f.writelines(json.dumps(d_out, indent=4), )
@@ -288,7 +298,11 @@ class InitPlain(object):
         self.ycoord = GenerateCoord.generate_ycoord(self.spl, self.lb, self.rb, 1.0)
         self.incoord = GenerateCoord.generate_incoord(self.xcoord, self.ycoord)
 
-    def to_json(self, file_name, save_path=os.getcwd()):
+    def to_json(self, file_name: str, save_path=os.getcwd()):
+
+        if not file_name.endswith(".json"):
+            file_name = file_name + ".json"
+
         d = {}
         d['xcoord'] = self.xcoord
         d['ycoord'] = self.ycoord
@@ -332,6 +346,34 @@ class InitPlain(object):
         if file_name is not None:
             fig.savefig(save_path + "/" + file_name)
         plt.show()
+
+    def save_fig(self, file_name: str, save_path=os.getcwd()):
+        if not file_name.endswith(".png"):
+            file_name = file_name + ".png"
+        fig = plt.figure(figsize=(15, 8))
+        # 绘制控制点
+        xx = Common.xlist(self.pt_list)
+        yy = Common.ylist(self.pt_list)
+        plt.plot(xx, yy, 'r^', markersize=16)
+
+        # 绘制拟合的样条线
+        xx = np.linspace(self.lb, self.rb, 300)
+        yy = self.spl(xx)
+        plt.plot(xx, yy, 'r--', linewidth=6)
+
+        # 绘制边界点
+        for pt_pair in self.xcoord + self.ycoord:
+            xx = Common.xlist(pt_pair)
+            yy = Common.ylist(pt_pair)
+            plt.plot(xx, yy, linewidth=1.2)
+
+        # 绘制内部点
+        for x, y in self.incoord:
+            plt.plot(x, y, 'ro', markersize=3.5)
+
+        # 调整图像显示
+        plt.xlim((self.lb, self.rb), )
+        fig.savefig(save_path + "/" + file_name)
 
 
 if __name__ == '__main__':

@@ -64,6 +64,7 @@ def get_node_deformation(odb, d_in, step_name):
     density = d_in['density']
 
     json_save_dir = d_in['json_save_dir']
+    res_file_prefix = d_in['res_file_prefix']
 
     # abaqus中的API模块，提取最终变形的data.
     final_frame = odb.steps[step_name].frames[-1]
@@ -109,7 +110,7 @@ def get_node_deformation(odb, d_in, step_name):
     # with open(odb_name + ".json", "w") as f:
     #     f.writelines(json.dumps(d, indent=4))
 
-    result_file = json_save_dir + "/" + "res_" + odb_name + ".json"
+    result_file = json_save_dir + "/" + res_file_prefix + odb_name + ".json"
     with open(result_file, "w") as f:
         f.writelines(json.dumps(d, indent=4))
 

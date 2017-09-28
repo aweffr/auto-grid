@@ -17,6 +17,6 @@ res = child.communicate()
 for line in res:
     try:
         line = line.decode("gbk")
-        print line
+        print(line)
     except Exception as e:
-        print e, line
+        print(e, line)

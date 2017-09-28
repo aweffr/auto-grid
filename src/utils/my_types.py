@@ -6,4 +6,4 @@ OdbArr = Tuple[float, float, float, float, float, float]
 
 Point = Union[Tuple, List]
 
-IterResult = Dict[OdbArr, Point2]
+IterRawResult = Dict[OdbArr, Point2]

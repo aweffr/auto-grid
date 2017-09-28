@@ -109,6 +109,11 @@ myAssembly.DatumCsysByDefault(CARTESIAN)
 Instance_A = myAssembly.Instance(dependent=ON, name='PartA', part=myPartA)
 Instance_B = myAssembly.Instance(dependent=ON, name='PartB', part=myPartB)
 
+# DEBUG
+mdb.saveAs(pathName=mdb_name)
+assert Instance_A is not None
+assert Instance_B is not None
+
 
 # for coord in gravityCentre:
 #     myAssembly.DatumPointByCoordinate(coords=coord)

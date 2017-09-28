@@ -42,8 +42,8 @@ class UtilsTest(unittest.TestCase):
             d = json.load(f)
         xcoord = d['xcoord']
         incoord = d['incoord']
-        print(GenerateAbaqusData.to_3d(xcoord))
-        print(GenerateAbaqusData.to_3d(incoord))
+        print(GenerateAbaqusData.to_3d_xy(xcoord))
+        print(GenerateAbaqusData.to_3d_inner(incoord))
         print("pass test b")
 
     def test_c_GenerateOutput(self):
@@ -56,8 +56,8 @@ class UtilsTest(unittest.TestCase):
             json_file_name=self.json_2nd_name,
             json_save_dir=self.json_path,
             abaqus_dir="E:/AbaqusDir/sym-40/abaqus-files",
-            mdb_name="iter6",
-            odb_name="iter6",
+            mdb_name="iter_new2",
+            odb_name="iter_new2",
             iter_time=0,
             left_hang=10,
             left_hang_height=5,
@@ -67,7 +67,8 @@ class UtilsTest(unittest.TestCase):
             thickness=0.003,
             elastic_modular=26E+09,
             density=1850,
-            deformation_step_name="Step-1"
+            deformation_step_name="Step-1",
+            res_file_prefix="res_"
         )
 
     def test_d_RunAbaqusPre(self):

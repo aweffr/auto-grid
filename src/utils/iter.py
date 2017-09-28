@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from numpy import std
 from scipy.interpolate import UnivariateSpline
 
-from src.utils.my_types import Point, Point2, OdbArr, IterResult
+from src.utils.my_types import Point, Point2, OdbArr, IterRawResult
 from src.utils.utils import InitPlain
 
 
@@ -88,7 +88,28 @@ class Iteration(object):
                 p1, p2 = p_b[:3], p_in[:3]
                 if Distance.abs(p1, p2) <= 1.0:
                     pairs.append((p_b, p_in))
+        if not cls.contains_sym_pt_pair(pairs):
+            pairs.extend(cls.get_sym_pt_pair(pts_b, pts_in))
         return pairs
+
+    @classmethod
+    def contains_sym_pt_pair(cls, pairs):
+        sym_pt_in_pairs = False
+        for p_b, p_in in pairs:
+            if p_b[1] == 0.0:
+                sym_pt_in_pairs = True
+                break
+        return sym_pt_in_pairs
+
+    @classmethod
+    def get_sym_pt_pair(cls, pts_b, pts_in):
+        sym_b = [p for p in pts_b if p[1] == 0.0]
+        sym_in = [p for p in pts_in if p[1] == 0.0]
+        sym_b.sort(key=itemgetter(0))
+        sym_in.sort(key=itemgetter(0))
+        pair_lb = (sym_b[0], sym_in[0])
+        pair_rb = (sym_b[-1], sym_in[-1])
+        return [pair_lb, pair_rb]
 
     @classmethod
     def relation(cls, p_b, p_in, accuracy=0.0001):
@@ -181,58 +202,69 @@ class Iteration(object):
             out = (new_x, p_b[1])
         else:
             if p_b[1] < p_in[1]:
-                new_y = p_b[1] - adj_val
+                # 在x轴下方
+                new_y = min(p_b[1] - adj_val, - 0.1)
             else:
-                new_y = p_b[1] + adj_val
+                # 在x轴上方
+                new_y = max(p_b[1] + adj_val, 0.1)
             out = (p_b[0], new_y)
         return out
 
     @classmethod
-    def smooth(cls, iter_result: IterResult):
-        """
-        先用smooth过的样条线拟合这些点，对于离散度大的进行删除。
-        :param iter_result:
+    def filter_start_from_zero(cls, pt_list: list):
+        """调整生成的列表，如果有非对称轴的点的坐标越过了对称轴的x值，必须忽略掉。
+        :param pt_list:
         :return:
         """
-        raw_pts = iter_result.values()
+        pt_list.sort(key=itemgetter(0))
+        while pt_list[0][1] != 0.0:
+            pt_list.pop(0)
+        while pt_list[-1][1] != 0.0:
+            pt_list.pop(-1)
+        return pt_list[:]
+
+    @classmethod
+    def smooth(cls, pt_list: list):
+        """
+        先用smooth过的样条线拟合这些点，对于离散度大的进行删除。
+        :param pt_list:
+        :return:
+        """
         new_pts = []
         # 只取大于等于零的点
-        raw_pts = [p for p in raw_pts if p[1] >= 0]
-        raw_pts.sort(key=itemgetter(0))
-        w = [1 for p in raw_pts]
+        pt_list = [p for p in pt_list if p[1] >= 0]
+        pt_list = cls.filter_start_from_zero(pt_list)
+        w = [1 for p in pt_list]
         w[0], w[-1] = 100, 100
-        spl = UnivariateSpline([p[0] for p in raw_pts], [p[1] for p in raw_pts], w=w, s=3)
+        spl = UnivariateSpline([p[0] for p in pt_list], [p[1] for p in pt_list], w=w, s=3)
         excluded_pts = set()
-        for p in raw_pts:
+        for p in pt_list:
             if abs(p[1] - spl(p[0])) > 0.3:
                 excluded_pts.add(p)
-        for p in raw_pts:
+        for p in pt_list:
             if p not in excluded_pts:
                 new_pts.append(p)
         return new_pts
 
-    def __solve(self) -> IterResult:
+    def __solve(self) -> IterRawResult:
         pairs = self.get_b_in_pairs(self.bound_pts, self.inner_pts)
-        new_points = dict()
+        raw_points_dict = dict()
         for p_b, p_in in pairs:
             p_new = self.adjust_by_z(p_b, p_in, self.avg_z, factor=self.factor)
-            new_points[tuple(p_b)] = p_new
-        return new_points
+            raw_points_dict[tuple(p_b)] = p_new
+        return raw_points_dict
 
     def plot_raw_result(self):
         """
         :return:
         """
         fig = plt.figure(figsize=(15, 8))
-        for pt_old, pt_new in self.raw_points.items():
+        for pt_old, pt_new in self.raw_points_dict.items():
             # xx = [pt_old[0], pt_new[0]]
             # yy = [pt_old[1], pt_new[1]]
             # plt.plot(xx, yy)
             plt.plot(pt_old[0], pt_old[1], "bo")
             plt.plot(pt_new[0], pt_new[1], "ro")
-        # plt.show()
-        for p in self.new_points:
-            plt.plot(p[0], p[1], 'g^')
         plt.show()
 
     def plot_new_result(self):
@@ -243,6 +275,9 @@ class Iteration(object):
             plt.plot(p[0], p[1], 'ro')
         plt.show()
 
+    def get_new_points(self):
+        return self.new_points
+
     def generate_new_plain(self):
         new_plain = InitPlain(self.new_points)
         return new_plain
@@ -252,8 +287,10 @@ class Iteration(object):
         self.bound_pts = sorted(d_in['bound_pts'], key=itemgetter(0))
         self.inner_pts = sorted(d_in['inner_pts'], key=itemgetter(0))
         self.avg_z, self.stderr = avg_err(self.bound_pts)
-        self.raw_points = self.__solve()
-        self.new_points = self.smooth(self.raw_points)
+        self.raw_points_dict = self.__solve()
+
+        tmp = self.raw_points_dict.values()
+        self.new_points = self.smooth(tmp)
 
 
 if __name__ == '__main__':
