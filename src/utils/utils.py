@@ -265,6 +265,8 @@ class GenerateAbaqusData(object):
         d_out['elastic_modular'] = elastic_modular
         d_out['density'] = density
 
+        d_out['json_save_dir'] = json_save_dir
+
         with open(json_save_dir + "/" + json_file_name, "w") as f:
             f.writelines(json.dumps(d_out, indent=4), )
         return d_out

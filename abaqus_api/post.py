@@ -63,6 +63,8 @@ def get_node_deformation(odb, d_in, step_name):
     elastic_modular = d_in['elastic_modular']
     density = d_in['density']
 
+    json_save_dir = d_in['json_save_dir']
+
     # abaqus中的API模块，提取最终变形的data.
     final_frame = odb.steps[step_name].frames[-1]
 
@@ -103,8 +105,14 @@ def get_node_deformation(odb, d_in, step_name):
     d['bound_pts'] = boundPointsDeformed
     d['inner_pts'] = innerPointsDeformed
     d['bound_stderr'] = stderr(boundPointsDeformed)
-    with open(odb_name+".json", "w") as f:
+
+    # with open(odb_name + ".json", "w") as f:
+    #     f.writelines(json.dumps(d, indent=4))
+
+    result_file = json_save_dir + "/" + "res_" + odb_name + ".json"
+    with open(result_file, "w") as f:
         f.writelines(json.dumps(d, indent=4))
+
     print("Finished!")
 
 
@@ -122,8 +130,8 @@ if __name__ == '__main__':
 
     iter_time = d["iter_time"]
 
+    odb = openOdb(path=odb_name + ".odb")
     try:
-        odb = openOdb(path=odb_name + ".odb")
         get_node_deformation(odb=odb, d_in=d, step_name=deformation_step_name)
     except Exception as e:
         print(e)
