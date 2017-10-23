@@ -19,7 +19,7 @@ class IterTest(unittest.TestCase):
         print(pt)
 
     def test_b_generate_new_plain(self):
-        odb_file_name = "res_auto777-3.json"
+        odb_file_name = "res_auto200-2.json"
         odb_file_path = "E:/AbaqusDir/auto/output"
         with open(odb_file_path + "/" + odb_file_name, "r") as f:
             d = json.load(f)

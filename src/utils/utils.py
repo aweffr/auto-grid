@@ -45,7 +45,14 @@ class Common(object):
         """
         pt_list = sorted(pt_list, key=itemgetter(0))
         xx, yy = Common.xlist(pt_list), Common.ylist(pt_list)
-        spl = InterpolatedUnivariateSpline(xx, yy)
+        try:
+            spl = InterpolatedUnivariateSpline(xx, yy)
+        except Exception as e:
+            print("pt_list=\n", pt_list, e)
+            exit(1)
+        # w = [1 for p in xx]
+        # w[0], w[-1] = 30, 30
+        # spl = UnivariateSpline(xx, yy, w=w, s=0)
         return spl
 
     @classmethod
@@ -292,6 +299,9 @@ class InitPlain(object):
         self.pt_list = sorted(pt_list, key=itemgetter(0))
         self.lb = self.pt_list[0][0]  # left_bound
         self.rb = self.pt_list[-1][0]  # right_bound
+
+        assert self.pt_list[0][1] == self.pt_list[-1][1] == 0.0  # 确保两边的点在对称轴上
+
         self.spl = Common.get_spl(self.pt_list)
 
         self.xcoord = GenerateCoord.generate_xcoord(self.spl, self.lb, self.rb, 1.0)

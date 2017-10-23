@@ -1,5 +1,3 @@
-from random import random
-
 from .utils import *
 
 
@@ -11,10 +9,11 @@ class Project(object):
     pre_script_name = "pre.py"
     post_script_name = "post.py"
 
-    def __init__(self, project_name, json_path, abaqus_dir, iter_times=10, step_factor=0.25):
+    def __init__(self, project_name, json_path, abaqus_dir, iter_times=10, step_factor=0.25, enable_rand=False):
         self.project_name = project_name
         self.json_path = json_path
         self.abaqus_dir = abaqus_dir
+        self.enable_rand = enable_rand
         self.abaqus_env = RunAbaqus(
             abaqus_exe_path=self.abaqus_exe_path,
             abaqus_dir=abaqus_dir,
@@ -27,6 +26,7 @@ class Project(object):
 
     def run(self, pt_list):
         for time in range(self.iter_times):
+            print("time:%d" % time, "pt_list=\n", pt_list)
             plain = InitPlain(pt_list)
             # plain.plot_xy()
             plain.save_fig("%s-%d" % (self.project_name, time), self.json_path)
@@ -62,10 +62,12 @@ class Project(object):
             res_file_name = res_file_prefix + abq_name + ".json"
             with open(self.json_path + "/" + res_file_name, "r") as f:
                 d = json.load(f)
+                print("bound_stderr=", d['bound_stderr'])
 
-            factor = self.step_factor * random() + 0.05
+            # factor = self.step_factor * random() + 0.05
+            factor = self.step_factor
 
-            iter = Iteration(d, factor=factor)
+            iter = Iteration(d, factor=factor, enable_rand=self.enable_rand)
             pt_list = iter.get_new_points()
 
 

@@ -69,7 +69,7 @@ def get_node_deformation(odb, d_in, step_name):
     # abaqus中的API模块，提取最终变形的data.
     final_frame = odb.steps[step_name].frames[-1]
 
-    d = dict()
+    d = d_in.copy()
 
     innerPointsDeformed = []
     boundPointsDeformed = []

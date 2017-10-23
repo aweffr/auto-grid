@@ -2,6 +2,8 @@
 import json
 from math import sqrt
 from operator import itemgetter
+from random import random
+from random import shuffle
 
 import matplotlib.pyplot as plt
 from numpy import std
@@ -149,6 +151,7 @@ class Iteration(object):
             avg_space_pt = (p_b[3], avg_y, avg_z)
         return avg_space_pt
 
+
     @classmethod
     def adjust_by_k(cls, p_b: OdbArr, p_in: OdbArr, avg_z: float, factor: float = 1.0) -> Point2:
         """计算avg所在空间点和目前边界点的距离, 根据当前p_b和临近p_in计算新的p_b所在位置.
@@ -182,7 +185,8 @@ class Iteration(object):
         return out
 
     @classmethod
-    def adjust_by_z(cls, p_b: OdbArr, p_in: OdbArr, avg_z: float, factor: float = 1.0) -> Point2:
+    def adjust_by_z(cls, p_b: OdbArr, p_in: OdbArr, avg_z: float, factor: float = 1.0,
+                    enable_rand: bool = False) -> Point2:
         """计算avg和当前点z坐标的高差，然后以此高差结合p_b和p_in的关系计算新的p_b所在位置。
         :param p_b:
         :param p_in:
@@ -193,7 +197,15 @@ class Iteration(object):
         assert factor > 0, "步进速率必须>0"
         relation = cls.relation(p_b, p_in)
         diff_h = p_b[-1] - avg_z
+
         adj_val = diff_h * factor
+        if enable_rand:
+            if adj_val == 0:
+                adj_val = (random() - 0.5) * 0.004  # [-0.002, 0.002)
+            else:
+                rand_factor = 1 + (random() - 0.5) * 0.002  # [0.999, 1.001)
+                adj_val = adj_val * rand_factor
+
         if relation == 'x':
             if p_b[0] < p_in[0]:
                 new_x = p_b[0] - adj_val
@@ -203,10 +215,10 @@ class Iteration(object):
         else:
             if p_b[1] < p_in[1]:
                 # 在x轴下方
-                new_y = min(p_b[1] - adj_val, - 0.1)
+                new_y = min(p_b[1] - adj_val, -0.05)
             else:
                 # 在x轴上方
-                new_y = max(p_b[1] + adj_val, 0.1)
+                new_y = max(p_b[1] + adj_val, 0.05)
             out = (p_b[0], new_y)
         return out
 
@@ -236,21 +248,49 @@ class Iteration(object):
         pt_list = cls.filter_start_from_zero(pt_list)
         w = [1 for p in pt_list]
         w[0], w[-1] = 100, 100
-        spl = UnivariateSpline([p[0] for p in pt_list], [p[1] for p in pt_list], w=w, s=3)
         excluded_pts = set()
-        for p in pt_list:
-            if abs(p[1] - spl(p[0])) > 0.3:
-                excluded_pts.add(p)
+        try:
+            spl = UnivariateSpline([p[0] for p in pt_list], [p[1] for p in pt_list], w=w, s=3)
+            for p in pt_list:
+                if abs(p[1] - spl(p[0])) > 0.3:
+                    excluded_pts.add(p)
+        except Exception as e:
+            print("Fail to smmoth", e)
         for p in pt_list:
             if p not in excluded_pts:
                 new_pts.append(p)
         return new_pts
 
+    def reduce_pts(self):
+        """生成的点太多会带来一些问题，尝试减少一些点
+        :return:
+        """
+        pts = [p for p in self.raw_points_dict.values() if p[1] >= 0.0]
+        pts = self.filter_start_from_zero(pts)
+        shuffle(pts)
+        result = []
+        for p1 in pts:
+            valid = True
+            if p1[1] == 0.0:
+                result.append(p1)
+                continue
+            for p2 in result:
+                dis = Distance.euclidean(p1, p2)
+                if dis <= 1.0:
+                    valid = False
+                    break
+            if valid:
+                result.append(p1)
+        print("before reduce: %d" % len(pts), "after: %d" % len(result))
+        result.sort(key=itemgetter(0))
+        return result
+
+
     def __solve(self) -> IterRawResult:
         pairs = self.get_b_in_pairs(self.bound_pts, self.inner_pts)
         raw_points_dict = dict()
         for p_b, p_in in pairs:
-            p_new = self.adjust_by_z(p_b, p_in, self.avg_z, factor=self.factor)
+            p_new = self.adjust_by_z(p_b, p_in, self.avg_z, factor=self.factor, enable_rand=self.enable_rand)
             raw_points_dict[tuple(p_b)] = p_new
         return raw_points_dict
 
@@ -282,15 +322,17 @@ class Iteration(object):
         new_plain = InitPlain(self.new_points)
         return new_plain
 
-    def __init__(self, d_in, factor):
+    def __init__(self, d_in, factor, enable_rand=False):
         self.factor = factor
+        self.enable_rand = enable_rand
         self.bound_pts = sorted(d_in['bound_pts'], key=itemgetter(0))
         self.inner_pts = sorted(d_in['inner_pts'], key=itemgetter(0))
         self.avg_z, self.stderr = avg_err(self.bound_pts)
         self.raw_points_dict = self.__solve()
 
-        tmp = self.raw_points_dict.values()
-        self.new_points = self.smooth(tmp)
+        tmp = self.reduce_pts()
+        self.new_points = tmp[:]
+        # self.new_points = self.smooth(tmp)
 
 
 if __name__ == '__main__':

@@ -3,3 +3,6 @@
 
 # python
 *.pyc
+
+# output files
+output/
